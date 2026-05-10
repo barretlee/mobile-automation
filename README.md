@@ -1,54 +1,68 @@
-# Mobile Automation — iOS Simulator 自动化数据采集
+# mobile-auto — iOS Simulator 自动化数据采集 CLI
 
-通过手机应用（如小红书、LinkedIn）自动采集数据的 CLI 工具。
+通过 Appium WebDriverAgent + xcrun simctl 实现 iOS Simulator 自动化操控。
 
-## 项目目标
+## 安装
 
-在 iOS Simulator 中实现自动化操控，支持：
-1. 启动/管理 Simulator
-2. 安装和启动 App
-3. 通过 WebDriverAgent 操控 UI（点击、长按、滚动、复制、截图）
-4. 提取数据到本地目录
-5. 可被 Hermes Agent 调度
+```bash
+# 1. 安装依赖
+pip install -e .
 
-## 技术选型
+# 2. 配置 Xcode 环境
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
 
-- **simctl** — Xcode 内建，负责 Simulator 生命周期
-- **WebDriverAgent**（appium fork）— UI 元素级操控
-- **facebook-wda** — Python 客户端控制 WDA
-- **Apple Vision OCR** — 截图文字识别（兜底）
+# 3. 下载 iOS Simulator Runtime（首次）
+# 打开 Simulator.app 按提示下载，或运行：
+bash scripts/setup_runtime.sh
+```
 
-## 项目结构
+## 使用
+
+```bash
+# 创建并启动 Simulator
+mobile-auto sim create --device "iPhone 16 Pro" --os iOS18
+mobile-auto sim boot
+
+# 安装应用 (.app 或通过 WDA 安装)
+mobile-auto sim install --app ~/apps/xiaohongshu.app
+
+# WebDriverAgent 操控
+mobile-auto wda build      # 编译 WDA 到 Simulator
+mobile-auto wda start      # 启动 WDA HTTP 服务 (port 8100)
+mobile-auto wda tap --x 100 --y 200
+
+# 自动化流程
+mobile-auto flow login --app xiaohongshu
+mobile-auto flow profile --app xiaohongshu --extract all
+mobile-auto flow profile --app linkedin --extract posts
+
+# JSON 输出（供 Agent 消费）
+mobile-auto sim list --json
+mobile-auto wda status --json
+```
+
+## 架构
 
 ```
-mobile-automation/
-├── docs/
-│   └── specs/
-│       └── 2026-05-10-mobile-automation/   # SDD 文档包
-│           ├── PRD.md
-│           ├── RESEARCH.md
-│           ├── SYSTEM.md
-│           ├── TASKS.md
-│           └── TEST.md
-├── src/
-│   ├── mobile_auto/
-│   │   ├── __init__.py
-│   │   ├── cli.py          # 主入口
-│   │   ├── simctl.py       # Simulator 管理
-│   │   ├── wda_client.py   # WDA 操控
-│   │   ├── flow.py         # 自动化流程
-│   │   └── ocr.py          # OCR 兜底
-│   └── ...
+mobile-auto/
+├── src/mobile_auto/
+│   ├── cli.py          # Click CLI 入口
+│   ├── simctl.py       # Simulator 生命周期管理
+│   ├── wda_client.py   # WebDriverAgent HTTP 客户端
+│   ├── flow.py         # 自动化流程（登录/提取）
+│   ├── ocr.py          # OCR 兜底
+│   └── util.py         # 工具函数
+├── scripts/
+│   ├── setup_runtime.sh    # Runtime 下载引导
+│   └── build_wda.sh        # WebDriverAgent 编译脚本
 ├── tests/
-├── pyproject.toml
-└── README.md
+├── docs/specs/
+└── pyproject.toml
 ```
 
-## 状态
+## 技术依赖
 
-- [x] SDD 文档完成
-- [ ] 阶段 1：基础设施
-- [ ] 阶段 2：WebDriverAgent 集成
-- [ ] 阶段 3：CLI 实现
-- [ ] 阶段 4：数据提取
-- [ ] 阶段 5：可调度集成
+- **simctl** — Xcode 内建，管理 Simulator 生命周期
+- **WebDriverAgent** (appium fork) — 注入 Simulator 的 HTTP 服务，操控 UI 元素
+- **facebook-wda** — Python 客户端，通过 HTTP :8100 控制 WDA
+- **Apple Vision OCR** — 截图文字识别（兜底方案）

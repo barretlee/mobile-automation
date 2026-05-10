@@ -1,0 +1,2 @@
+[console_scripts]
+mobile-auto = mobile_auto.cli:cli

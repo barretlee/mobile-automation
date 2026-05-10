@@ -1,0 +1,15 @@
+README.md
+pyproject.toml
+src/mobile_auto/__init__.py
+src/mobile_auto/cli.py
+src/mobile_auto/flow.py
+src/mobile_auto/ocr.py
+src/mobile_auto/simctl.py
+src/mobile_auto/util.py
+src/mobile_auto/wda_client.py
+src/mobile_auto.egg-info/PKG-INFO
+src/mobile_auto.egg-info/SOURCES.txt
+src/mobile_auto.egg-info/dependency_links.txt
+src/mobile_auto.egg-info/entry_points.txt
+src/mobile_auto.egg-info/requires.txt
+src/mobile_auto.egg-info/top_level.txt

@@ -1,2 +1,6 @@
 node_modules/
-docs/
+docs/specs/
+__pycache__/
+*.pyc
+.eggs/
+src/*.egg-info/
