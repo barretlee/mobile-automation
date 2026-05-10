@@ -391,6 +391,45 @@ def flow_profile(app, extract, output, json_output):
     }, json_output)
 
 
+@flow.command(name="linkedin")
+@click.option("--username", "-u", default=None, help="LinkedIn username for profile page")
+@click.option("--scroll", default=3, help="Number of scroll pages to capture")
+@click.option("--output", "-o", default=None, help="Output directory")
+@click.option("--json-output", "json_output", is_flag=True)
+def flow_linkedin(username, scroll, output, json_output):
+    """Extract LinkedIn feed via Safari (WDA + OCR)"""
+    from .flow import linkedin_safari_feed
+    from .wda_client import WDAClient
+
+    if not output:
+        output = os.path.expanduser(f"~/mobile-data/linkedin_web")
+
+    click.echo(f"🌐 LinkedIn Web extraction starting...")
+    wda = WDAClient()
+    result = linkedin_safari_feed(wda, username=username, scroll_pages=scroll, output_dir=output)
+    _output(result, json_output)
+
+
+@flow.command(name="ocr")
+@click.argument("image_path")
+@click.option("--engine", default="auto", help="OCR engine: auto, apple, paddle")
+@click.option("--json-output", "json_output", is_flag=True)
+def flow_ocr(image_path, engine, json_output):
+    """Run OCR on an image"""
+    from .ocr import ocr
+
+    image_path = os.path.expanduser(image_path)
+    if not os.path.exists(image_path):
+        click.echo(f"Image not found: {image_path}", err=True)
+        sys.exit(1)
+
+    text = ocr(image_path, engine=engine)
+    if json_output:
+        click.echo(json.dumps({"path": image_path, "text": text}, ensure_ascii=False, indent=2))
+    else:
+        click.echo(text)
+
+
 # ─── Main entry ────────────────────────────────────────────────────
 
 if __name__ == "__main__":

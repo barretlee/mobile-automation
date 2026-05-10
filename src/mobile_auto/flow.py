@@ -22,6 +22,13 @@ APP_BUNDLES = {
     "weibo": "com.sina.weibo",
 }
 
+# Safari 网页版 URL 映射 (用于不需要原生 App 的场景)
+PAGE_URLS = {
+    "linkedin": "https://www.linkedin.com/feed",
+    "linkedin_profile": "https://www.linkedin.com/in/{username}",
+    "linkedin_posts": "https://www.linkedin.com/in/{username}/recent-activity/",
+}
+
 # Data output root
 DATA_ROOT = os.path.expanduser("~/mobile-data")
 
@@ -158,7 +165,7 @@ def extract_profile(wda: WDAClient, app: str, extract: str = "all",
         except WDAError:
             continue
 
-    if not found_proffile:
+    if not found_profile:
         print("   Profile tab not found by label, trying bottom-right tap...")
         size = wda.window_size()
         wda.tap(int(size["width"] * 0.9), int(size["height"] * 0.9))
@@ -234,5 +241,136 @@ def extract_profile(wda: WDAClient, app: str, extract: str = "all",
 
     collected["metadata"] = metadata
     print(f"✅ Profile data saved to {output_dir}")
+
+    return collected
+
+
+# ─── LinkedIn Safari flow ────────────────────────────────────
+
+
+def linkedin_safari_feed(wda: WDAClient, username: str = None,
+                          scroll_pages: int = 3, output_dir: str = None) -> dict:
+    """Open LinkedIn feed in Safari and extract posts via screenshot+OCR+source.
+
+    No native app needed — works entirely through Safari on the simulator.
+    """
+    SAFARI_BUNDLE = "com.apple.mobilesafari"
+
+    if not output_dir:
+        output_dir = _ensure_data_dir("linkedin_web")
+
+    print(f"🌐 Opening LinkedIn in Safari...")
+
+    # 1. Launch Safari
+    wda.session(bundle_id=SAFARI_BUNDLE)
+    time.sleep(3)
+
+    # 2. Navigate to URL bar and type LinkedIn URL
+    # In simulator Safari, tap the URL bar (usually at top of screen)
+    size = wda.window_size()
+    # URL bar at top of screen — tap it
+    wda.tap(size["width"] // 2, 30)
+    time.sleep(1)
+
+    # Try typing URL via clipboard + paste
+    target_url = PAGE_URLS["linkedin"]
+    if username:
+        target_url = PAGE_URLS["linkedin_posts"].format(username=username)
+
+    # Type URL using keyboard (WDA can type into active text field)
+    # WDA supports /wda/keys endpoint
+    import requests
+    try:
+        r = requests.post(
+            f"{wda.base_url}/session/{wda._session_id}/wda/keys",
+            json={"value": [target_url]},
+            timeout=10,
+        )
+    except Exception:
+        # Fallback: set pasteboard and long-press to paste
+        wda.set_pasteboard(target_url)
+        time.sleep(0.5)
+        wda.long_press(size["width"] // 2, 30, duration=1.5)
+        time.sleep(1)
+
+    # Press Enter/Go
+    try:
+        r = requests.post(
+            f"{wda.base_url}/session/{wda._session_id}/wda/keys",
+            json={"value": ["\n"]},
+            timeout=10,
+        )
+    except Exception:
+        pass
+
+    time.sleep(5)  # Wait for page load
+
+    collected = {
+        "platform": "linkedin_web",
+        "url": target_url,
+        "screenshots": [],
+        "texts": [],
+        "output_dir": output_dir,
+    }
+
+    # 3. Take initial screenshot
+    ss_path = os.path.join(output_dir, "screenshots", "page_00.png")
+    wda.save_screenshot(ss_path)
+    collected["screenshots"].append(ss_path)
+    print(f"   Screenshot: {ss_path}")
+
+    # 4. Extract page source for text
+    try:
+        src = wda.source()
+        text_path = os.path.join(output_dir, "text", "page_source.xml")
+        with open(text_path, "w", encoding="utf-8") as f:
+            f.write(src)
+        collected["texts"].append({"file": text_path, "length": len(src)})
+        print(f"   Page source: {text_path} ({len(src)} chars)")
+    except WDAError as e:
+        print(f"   Source extraction: {e}")
+
+    # 5. Scroll and screenshot more
+    for page in range(scroll_pages):
+        print(f"📜 Scrolling page {page + 1}/{scroll_pages}...")
+        wda.scroll("down", 0.7)
+        time.sleep(2)
+
+        ss_path = os.path.join(output_dir, "screenshots", f"page_{page + 1:02d}.png")
+        wda.save_screenshot(ss_path)
+        collected["screenshots"].append(ss_path)
+
+    # 6. OCR all screenshots
+    print("🔍 Running OCR on all screenshots...")
+    from .ocr import ocr
+
+    all_text = []
+    for i, ss in enumerate(collected["screenshots"]):
+        text = ocr(ss)
+        if text:
+            ocr_path = os.path.join(output_dir, "text", f"ocr_{i:02d}.txt")
+            with open(ocr_path, "w", encoding="utf-8") as f:
+                f.write(text)
+            all_text.append(text)
+            print(f"   OCR page {i}: {len(text)} chars")
+
+    # 7. Save metadata
+    metadata = {
+        "platform": "linkedin_web",
+        "url": target_url,
+        "username": username,
+        "scroll_pages": scroll_pages,
+        "screenshot_count": len(collected["screenshots"]),
+        "texts_count": len(collected["texts"]),
+        "ocr_text_count": len(all_text),
+        "total_ocr_chars": sum(len(t) for t in all_text),
+        "output_dir": output_dir,
+    }
+    meta_path = os.path.join(output_dir, "metadata.json")
+    with open(meta_path, "w", encoding="utf-8") as f:
+        json.dump(metadata, f, ensure_ascii=False, indent=2)
+
+    print(f"✅ LinkedIn feed data saved to {output_dir}")
+    print(f"   {len(collected['screenshots'])} screenshots, {len(all_text)} OCR pages")
 
     return collected

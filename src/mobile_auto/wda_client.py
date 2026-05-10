@@ -38,8 +38,8 @@ class WDAClient:
 
     def __init__(self, port: int = WDA_DEFAULT_PORT, timeout: int = 10):
         self.base_url = f"http://localhost:{port}"
-        self.session = requests.Session()
-        self.session.timeout = timeout
+        self._session = requests.Session()
+        self._session.timeout = timeout
         self._session_id = None
 
     def _req(self, method, path, **kwargs):
@@ -47,7 +47,7 @@ class WDAClient:
         if self._session_id and "/session/" not in path:
             url = f"{self.base_url}/session/{self._session_id}{path}"
         try:
-            r = self.session.request(method, url, **kwargs)
+            r = self._session.request(method, url, **kwargs)
             r.raise_for_status()
             return r.json()
         except requests.RequestException as e:
@@ -99,6 +99,11 @@ class WDAClient:
         if isinstance(val, dict):
             return val
         raise WDAError(f"Unexpected response: {r}")
+
+    def source(self) -> str:
+        """Get page source as XML — all UI elements in the current view."""
+        r = self._req("GET", "/source")
+        return r.get("value", "")
 
     # ─── Element finding ────────────────────────────────────────
 

@@ -63,7 +63,7 @@ def get_booted_device():
     return None
 
 
-def create(name, device_type="iPhone 16 Pro", runtime="iOS18"):
+def create(name, device_type="iPhone 16 Pro", runtime="com.apple.CoreSimulator.SimRuntime.iOS-18-6"):
     """Create a new simulator."""
     cmd = ["simctl", "create", name, device_type, runtime]
     code, out, err = _xcrun(*cmd)
